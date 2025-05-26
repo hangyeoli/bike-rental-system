@@ -7,114 +7,111 @@
 #include "BikeManager.h"
 #include "RentalManager.h"
 #include "SignUp.h"
-#include "SignUpUI.h"
 #include "Login.h"
-#include "LoginUI.h"
 #include "Logout.h"
-#include "LogoutUI.h"
 #include "RegisterBike.h"
-#include "RegisterBikeUI.h"
 #include "RentBike.h"
-#include "RentBikeUI.h"
 #include "RentalInfo.h"
-#include "RentalInfoUI.h"
 #include "Exit.h"
-#include "ExitUI.h"
 
-struct Command {
-    int command;
-    int subCommand;
-    std::vector<std::string> parameters;
-};
-
-Command parseCommand(const std::string& line) {
-    Command cmd;
-    std::istringstream iss(line);
-    iss >> cmd.command >> cmd.subCommand;
-    std::string param;
-    while (iss >> param) {
-        cmd.parameters.push_back(param);
-    }
-    return cmd;
-}
-
-int main() {
-    // 파일명
-    std::string outputFile = "output.txt";
-
+void doTask(std::ifstream& input_file) {
     // 매니저 객체들 생성
     UserManager userManager;
     BikeManager bikeManager;
     RentalManager rentalManager;
-
-    // UI 객체들 생성
-    SignUpUI signUpUI(outputFile);
-    LoginUI loginUI(outputFile);
-    LogoutUI logoutUI(outputFile);
-    RegisterBikeUI registerBikeUI(outputFile);
-    RentBikeUI rentBikeUI(outputFile);
-    RentalInfoUI rentalInfoUI(outputFile);
-    ExitUI exitUI(outputFile);
-
-    // 컨트롤 객체들 생성
-    SignUp signUp(&userManager, &signUpUI);
-    Login login(&userManager, &loginUI);
-    Logout logout(&logoutUI);
-    RegisterBike registerBike(&bikeManager, &registerBikeUI);
-    RentBike rentBike(&bikeManager, &rentalManager, &rentBikeUI);
-    RentalInfo rentalInfo(&rentalManager, &rentalInfoUI);
-    Exit exitSys(&exitUI);
-
+    
     // 현재 로그인된 사용자
     User* currentUser = nullptr;
-
-    std::ifstream inputFile("input.txt");
-    std::string line;
-    while (std::getline(inputFile, line)) {
-        Command cmd = parseCommand(line);
-        if (cmd.command == 1 && cmd.subCommand == 1) {
-            // 회원가입 (로그인하지 않은 사용자만 가능)
-            if (currentUser == nullptr && cmd.parameters.size() >= 3) {
-                signUp.RegisterUser(cmd.parameters[0], cmd.parameters[1], cmd.parameters[2]);
+    
+    int menu_level_1 = 0, menu_level_2 = 0;
+    int is_program_exit = 0;
+    
+    while (!is_program_exit && input_file >> menu_level_1 >> menu_level_2) {
+        switch (menu_level_1) {
+            case 1: {
+                switch (menu_level_2) {
+                    case 1: { // 회원가입
+                        if (currentUser == nullptr) {
+                            SignUp signUp(&userManager, &input_file);
+                            signUp.RegisterUser();
+                        }
+                        break;
+                    }
+                }
+                break;
             }
-        }
-        else if (cmd.command == 2 && cmd.subCommand == 1) {
-            // 로그인
-            if (cmd.parameters.size() >= 2) {
-                currentUser = login.Authenticate(cmd.parameters[0], cmd.parameters[1]);
+            case 2: {
+                switch (menu_level_2) {
+                    case 1: { // 로그인
+                        Login login(&userManager, &input_file);
+                        currentUser = login.Authenticate();
+                        break;
+                    }
+                    case 2: { // 로그아웃
+                        if (currentUser) {
+                            Logout logout(&input_file);
+                            logout.LogoutUser(currentUser->GetId());
+                            currentUser = nullptr;
+                        }
+                        break;
+                    }
+                }
+                break;
             }
-        }
-        else if (cmd.command == 2 && cmd.subCommand == 2) {
-            // 로그아웃
-            if (currentUser) {
-                logout.LogoutUser(currentUser->GetId());
-                currentUser = nullptr;
+            case 3: {
+                switch (menu_level_2) {
+                    case 1: { // 자전거 등록
+                        if (currentUser && currentUser->GetIsAdmin()) {
+                            RegisterBike registerBike(&bikeManager, &input_file);
+                            registerBike.AddBike();
+                        }
+                        break;
+                    }
+                }
+                break;
             }
-        }
-        else if (cmd.command == 3 && cmd.subCommand == 1) {
-            // 자전거 등록 (관리자만 가능)
-            if (currentUser && currentUser->GetIsAdmin() && cmd.parameters.size() >= 2) {
-                registerBike.AddBike(cmd.parameters[0], cmd.parameters[1]);
+            case 4: {
+                switch (menu_level_2) {
+                    case 1: { // 자전거 대여
+                        if (currentUser && !currentUser->GetIsAdmin()) {
+                            RentBike rentBike(&bikeManager, &rentalManager, &input_file);
+                            rentBike.StartRental(currentUser);
+                        }
+                        break;
+                    }
+                }
+                break;
             }
-        }
-        else if (cmd.command == 4 && cmd.subCommand == 1) {
-            // 자전거 대여 (회원만 가능)
-            if (currentUser && !currentUser->GetIsAdmin() && cmd.parameters.size() >= 1) {
-                rentBike.StartRental(cmd.parameters[0], currentUser);
+            case 5: {
+                switch (menu_level_2) {
+                    case 1: { // 대여 리스트 조회
+                        if (currentUser && !currentUser->GetIsAdmin()) {
+                            RentalInfo rentalInfo(&rentalManager, &input_file);
+                            rentalInfo.ShowUserRentalList(currentUser);
+                        }
+                        break;
+                    }
+                }
+                break;
             }
-        }
-        else if (cmd.command == 5 && cmd.subCommand == 1) {
-            // 대여 리스트 조회 (회원만 가능)
-            if (currentUser && !currentUser->GetIsAdmin()) {
-                rentalInfo.ShowUserRentalList(currentUser);
+            case 6: {
+                switch (menu_level_2) {
+                    case 1: { // 종료
+                        Exit exitSys(&input_file);
+                        exitSys.Terminate();
+                        is_program_exit = 1;
+                        break;
+                    }
+                }
+                break;
             }
-        }
-        else if (cmd.command == 6 && cmd.subCommand == 1) {
-            // 종료
-            exitSys.Terminate();
-            break;
         }
     }
-    inputFile.close();
+}
+
+int main() {
+    std::ifstream input_file("input.txt");
+    doTask(input_file);
+    input_file.close();
     return 0;
 } 
